@@ -1,232 +1,447 @@
-/**
- * # Chat UI Components Examples
- *
- * This guide demonstrates how to build chat user interfaces using the IBL AI chat hooks and utilities.
- * While the SDK doesn't provide pre-built chat UI components, it provides all the necessary hooks
- * and data management tools to build your own chat interface.
- *
- * ## Key Building Blocks:
- *
- * ### Hooks (from @iblai/web-utils):
- * - `useAdvancedChat` - Main hook for chat functionality with tabs, sessions, streaming
- * - `useChat` / `useChatV2` - Core WebSocket chat implementation
- * - `useGetChatDetails` - Fetch chat history with RTK Query
- * - `useMentorTools` - Manage AI mentor tools (web browsing, code interpreter, etc.)
- *
- * ### Components (from @iblai/web-containers):
- * - Standard UI components: Avatar, Button, Card, Dialog, Tooltip, etc.
- * - These can be combined to create chat interfaces
- *
- * ### Data Types:
- * - `Message` - Chat message interface
- * - `FileAttachment` - File attachment interface
- * - `MessageAction` - Action buttons in messages
- *
- * @module chat-components
- */
-
 import type { Meta, StoryObj } from '@storybook/react';
 
-const meta: Meta = {
-  title: 'Examples/Chat UI Components',
+/**
+ * # Chat Components Guide
+ *
+ * Comprehensive guide for building chat user interfaces using IBL AI SDK hooks and components.
+ * This documentation provides implementation patterns and best practices for creating
+ * chat applications with AI mentors.
+ *
+ * ## Overview
+ *
+ * The IBL AI SDK provides powerful hooks and utilities for building chat interfaces,
+ * but does not prescribe specific UI components. This gives you flexibility to:
+ *
+ * - Build custom chat UIs that match your design system
+ * - Use any UI framework (Tailwind, Material-UI, Ant Design, etc.)
+ * - Implement platform-specific designs (web, mobile, desktop)
+ *
+ * ## Key Building Blocks
+ *
+ * ### Hooks from @iblai/web-utils:
+ * - `useAdvancedChat` - Main hook with tabs, sessions, streaming
+ * - `useChatV2` - Core WebSocket chat implementation
+ * - `useGetChatDetails` - Fetch chat history (RTK Query)
+ * - `useMentorTools` - Manage AI tools (web browsing, code interpreter)
+ *
+ * ### Components from @iblai/web-containers:
+ * - Base UI components: Button, Input, Avatar, Dialog, etc.
+ * - Markdown renderer with syntax highlighting
+ * - Loading indicators and spinners
+ *
+ * ### Data Types:
+ * ```typescript
+ * interface Message {
+ *   role: 'user' | 'assistant';
+ *   content: string;
+ *   visible: boolean;
+ *   timestamp?: string;
+ *   fileAttachments?: FileAttachment[];
+ * }
+ *
+ * interface FileAttachment {
+ *   fileName: string;
+ *   fileUrl: string;
+ *   fileType: string;
+ * }
+ * ```
+ */
+const meta = {
+  title: 'Web Containers/Chat Components',
   parameters: {
-    layout: 'fullscreen',
+    layout: 'centered',
+    docs: {
+      description: {
+        component: 'Patterns and examples for building chat UIs with IBL AI SDK.',
+      },
+    },
   },
-};
+  tags: ['autodocs'],
+} satisfies Meta;
 
 export default meta;
-type Story = StoryObj;
+type Story = StoryObj<typeof meta>;
 
 /**
- * ## Chat Message Bubble Components
+ * ## useAdvancedChat Hook
  *
- * Examples of how to build message bubble components for user and AI messages.
+ * The primary hook for building chat interfaces with streaming, tabs, and session management.
  *
- * ### AI Message Bubble
+ * ### Hook API
+ *
+ * ```typescript
+ * import { useAdvancedChat } from '@iblai/iblai-js';
+ *
+ * const {
+ *   // Message state
+ *   messages,                    // Array<Message> - All messages in current session
+ *   currentStreamingMessage,     // Message | null - Currently streaming message
+ *
+ *   // Actions
+ *   sendMessage,                 // (tab, content, options) => void
+ *   stopGenerating,              // () => void - Stop AI response
+ *   setMessage,                  // (content) => void - Set input value
+ *
+ *   // UI state
+ *   isStreaming,                 // boolean - AI is generating response
+ *   isPending,                   // boolean - Waiting for response
+ *   sessionId,                   // string - Current session ID
+ *
+ *   // Mentor info
+ *   mentorName,                  // string - AI mentor name
+ *   profileImage,                // string - Mentor avatar URL
+ *
+ *   // Tab management
+ *   activeTab,                   // string - Current active tab
+ *   changeTab,                   // (tab: string) => void
+ * } = useAdvancedChat({
+ *   mentorId: 'mentor-123',
+ *   mode: 'advanced',
+ *   tenantKey: 'my-organization',
+ *   username: 'user@example.com',
+ *   token: 'auth-token',
+ *   wsUrl: 'wss://api.iblai.app/ws/langflow/',
+ *   stopGenerationWsUrl: 'wss://api.iblai.app/ws/langflow-stop-generation/',
+ *   redirectToAuthSpa: (redirectTo?: string) => {
+ *     window.location.href = `/login?redirect=${redirectTo}`;
+ *   },
+ * });
+ * ```
+ *
+ * ### Basic Usage Example
  *
  * ```tsx
- * import { Avatar, AvatarImage, AvatarFallback } from '@iblai/web-containers';
- * import { Message } from '@iblai/web-utils';
+ * import { useAdvancedChat } from '@iblai/iblai-js';
  *
- * interface AIMessageBubbleProps {
+ * function ChatInterface() {
+ *   const {
+ *     messages,
+ *     sendMessage,
+ *     isStreaming,
+ *     stopGenerating,
+ *     mentorName,
+ *     profileImage,
+ *   } = useAdvancedChat({
+ *     mentorId: 'mentor-123',
+ *     mode: 'advanced',
+ *     tenantKey: 'my-org',
+ *     username: 'user123',
+ *     token: 'auth-token',
+ *     wsUrl: 'wss://api.iblai.app/ws/langflow/',
+ *     stopGenerationWsUrl: 'wss://api.iblai.app/ws/langflow-stop-generation/',
+ *     redirectToAuthSpa: (redirectTo) => {
+ *       window.location.href = `/auth?redirect=${redirectTo}`;
+ *     },
+ *   });
+ *
+ *   const handleSendMessage = (content: string) => {
+ *     sendMessage('chat', content, { visible: true });
+ *   };
+ *
+ *   return (
+ *     <div>
+ *       <MessageList messages={messages} />
+ *       <ChatInput
+ *         onSend={handleSendMessage}
+ *         isStreaming={isStreaming}
+ *         onStop={stopGenerating}
+ *       />
+ *     </div>
+ *   );
+ * }
+ * ```
+ *
+ * ### Hook Parameters
+ *
+ * | Parameter | Type | Required | Description |
+ * |-----------|------|----------|-------------|
+ * | `mentorId` | string | Yes | AI mentor identifier |
+ * | `mode` | 'basic' \| 'advanced' | Yes | Chat mode |
+ * | `tenantKey` | string | Yes | Organization/tenant key |
+ * | `username` | string | Yes | Current user identifier |
+ * | `token` | string | Yes | Authentication token |
+ * | `wsUrl` | string | Yes | WebSocket URL for chat |
+ * | `stopGenerationWsUrl` | string | Yes | WebSocket URL for stopping |
+ * | `redirectToAuthSpa` | function | Yes | Auth redirect handler |
+ *
+ * ### Return Values
+ *
+ * | Property | Type | Description |
+ * |----------|------|-------------|
+ * | `messages` | Message[] | All messages in session |
+ * | `sendMessage` | function | Send a new message |
+ * | `isStreaming` | boolean | AI is currently responding |
+ * | `isPending` | boolean | Waiting for AI response |
+ * | `stopGenerating` | function | Stop AI response generation |
+ * | `sessionId` | string | Current session ID |
+ * | `mentorName` | string | AI mentor display name |
+ * | `profileImage` | string | Mentor avatar URL |
+ * | `activeTab` | string | Current active tab |
+ * | `changeTab` | function | Switch between tabs |
+ * | `currentStreamingMessage` | Message \| null | Message being streamed |
+ * | `setMessage` | function | Set input field value |
+ */
+export const UseAdvancedChatHook: Story = {
+  render: () => (
+    <div style={{ padding: '20px', fontFamily: 'monospace', maxWidth: '800px' }}>
+      <h3>useAdvancedChat Hook</h3>
+
+      <h4>Basic Setup</h4>
+      <pre style={{ background: '#f5f5f5', padding: '15px', borderRadius: '4px', overflow: 'auto' }}>
+{`import { useAdvancedChat } from '@iblai/iblai-js';
+
+function ChatApp() {
+  const chat = useAdvancedChat({
+    mentorId: 'mentor-123',
+    mode: 'advanced',
+    tenantKey: 'my-org',
+    username: 'user@example.com',
+    token: 'auth-token',
+    wsUrl: 'wss://api.iblai.app/ws/langflow/',
+    stopGenerationWsUrl: 'wss://api.iblai.app/ws/langflow-stop-generation/',
+    redirectToAuthSpa: (redirectTo) => {
+      window.location.href = \`/login?redirect=\${redirectTo}\`;
+    },
+  });
+
+  // chat.messages - all messages
+  // chat.sendMessage - send new message
+  // chat.isStreaming - is AI responding
+  // chat.mentorName - mentor display name
+  // chat.profileImage - mentor avatar
+
+  return <YourChatUI {...chat} />;
+}`}
+      </pre>
+
+      <h4>Sending Messages</h4>
+      <pre style={{ background: '#f5f5f5', padding: '15px', borderRadius: '4px', overflow: 'auto' }}>
+{`// Send a text message
+chat.sendMessage('chat', 'Hello!', { visible: true });
+
+// Send with file attachments
+chat.sendMessage('chat', 'Check this file', {
+  visible: true,
+  fileAttachments: [
+    {
+      fileName: 'document.pdf',
+      fileUrl: 'https://...',
+      fileType: 'application/pdf'
+    }
+  ]
+});
+
+// Stop generation
+chat.stopGenerating();`}
+      </pre>
+
+      <p><strong>Key Features:</strong></p>
+      <ul style={{ lineHeight: '1.8' }}>
+        <li>Real-time streaming responses</li>
+        <li>WebSocket-based communication</li>
+        <li>Session management</li>
+        <li>Multi-tab support (Chat, Research, Code)</li>
+        <li>File attachment support</li>
+        <li>Stop generation capability</li>
+        <li>Automatic reconnection</li>
+      </ul>
+    </div>
+  ),
+};
+
+/**
+ * ## Building Message Components
+ *
+ * Guide for creating message bubble components to display chat messages.
+ *
+ * ### Message Interface
+ *
+ * ```typescript
+ * interface Message {
+ *   role: 'user' | 'assistant';
  *   content: string;
- *   profileImage: string;
+ *   visible: boolean;
+ *   timestamp?: string;
+ *   fileAttachments?: FileAttachment[];
+ * }
+ * ```
+ *
+ * ### AI Message Component Example
+ *
+ * ```tsx
+ * import { Avatar, AvatarImage, AvatarFallback, Markdown } from '@iblai/iblai-js';
+ *
+ * interface AIMessageProps {
+ *   content: string;
  *   mentorName: string;
- *   timestamp: string;
+ *   profileImage: string;
+ *   timestamp?: string;
  *   onRetry?: () => void;
  * }
  *
- * export function AIMessageBubble({
+ * export function AIMessage({
  *   content,
- *   profileImage,
  *   mentorName,
+ *   profileImage,
  *   timestamp,
  *   onRetry
- * }: AIMessageBubbleProps) {
+ * }: AIMessageProps) {
  *   return (
- *     <div className="mb-4">
- *       <div className="flex items-start">
- *         <Avatar className="h-8 w-8 mr-3">
- *           <AvatarImage src={profileImage} alt={mentorName} />
- *           <AvatarFallback>{mentorName.substring(0, 2)}</AvatarFallback>
- *         </Avatar>
- *         <div className="flex-1 max-w-[75%]">
- *           <div className="flex items-center mb-1">
- *             <span className="font-medium text-gray-900 mr-2">{mentorName}</span>
- *             <span className="text-gray-500 text-xs">{timestamp}</span>
- *           </div>
- *           <div className="bg-gray-100 rounded-lg p-3">
- *             <div className="text-gray-800 text-sm">{content}</div>
- *           </div>
- *           <div className="flex items-center space-x-2 mt-1">
- *             <button onClick={onRetry} className="text-gray-500 hover:text-gray-700">
- *               Retry
- *             </button>
- *           </div>
+ *     <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'flex-start' }}>
+ *       <Avatar style={{ width: '32px', height: '32px', marginRight: '12px' }}>
+ *         <AvatarImage src={profileImage} alt={mentorName} />
+ *         <AvatarFallback>{mentorName.slice(0, 2)}</AvatarFallback>
+ *       </Avatar>
+ *
+ *       <div style={{ flex: 1 }}>
+ *         <div style={{ marginBottom: '4px' }}>
+ *           <span style={{ fontWeight: 500 }}>{mentorName}</span>
+ *           {timestamp && (
+ *             <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px' }}>
+ *               {timestamp}
+ *             </span>
+ *           )}
  *         </div>
+ *
+ *         <Markdown content={content} />
+ *
+ *         {onRetry && (
+ *           <button onClick={onRetry} style={{ fontSize: '12px', marginTop: '4px' }}>
+ *             Retry
+ *           </button>
+ *         )}
  *       </div>
  *     </div>
  *   );
  * }
  * ```
  *
- * ### User Message Bubble
+ * ### User Message Component Example
  *
  * ```tsx
- * interface UserMessageBubbleProps {
+ * interface UserMessageProps {
  *   content: string;
  *   fileAttachments?: FileAttachment[];
  * }
  *
- * export function UserMessageBubble({ content, fileAttachments }: UserMessageBubbleProps) {
+ * export function UserMessage({ content, fileAttachments }: UserMessageProps) {
  *   return (
- *     <div className="flex flex-col items-end mb-4">
- *       {fileAttachments && fileAttachments.length > 0 && (
- *         <div className="flex flex-col gap-2 mb-2">
- *           {fileAttachments.map((file, idx) => (
- *             <div key={idx} className="bg-white border rounded-lg p-2">
- *               <span className="text-sm">{file.fileName}</span>
- *             </div>
- *           ))}
- *         </div>
- *       )}
- *       {content && (
- *         <div className="bg-blue-50 text-gray-800 rounded-lg px-4 py-2 max-w-[80%]">
- *           {content}
- *         </div>
- *       )}
+ *     <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+ *       <div style={{ maxWidth: '80%' }}>
+ *         {fileAttachments?.map((file, idx) => (
+ *           <div key={idx} style={{ marginBottom: '8px', padding: '8px', border: '1px solid #ddd' }}>
+ *             {file.fileName}
+ *           </div>
+ *         ))}
+ *
+ *         {content && (
+ *           <div style={{ padding: '12px', background: '#f0f0f0', borderRadius: '8px' }}>
+ *             {content}
+ *           </div>
+ *         )}
+ *       </div>
  *     </div>
  *   );
  * }
  * ```
  */
-export const MessageBubbles: Story = {
+export const MessageComponents: Story = {
   render: () => (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-4">Chat Message Bubbles</h2>
-      <p className="mb-6 text-gray-600">Examples of AI and user message components</p>
+    <div style={{ padding: '20px', fontFamily: 'monospace', maxWidth: '800px' }}>
+      <h3>Message Components</h3>
 
-      <div className="max-w-2xl mx-auto bg-white rounded-lg p-4">
-        <pre className="text-xs bg-gray-100 p-4 rounded overflow-x-auto">
-{`// See the story description above for full implementation
-// Key features:
-// - Avatar with fallback
-// - Timestamp display
-// - Message content with markdown support
-// - Action buttons (retry, copy, share, rating)
-// - File attachment display
-// - Reply context`}
-        </pre>
+      <h4>AI Message Component</h4>
+      <pre style={{ background: '#f5f5f5', padding: '15px', borderRadius: '4px', overflow: 'auto' }}>
+{`import { Avatar, Markdown } from '@iblai/iblai-js';
+
+function AIMessage({ content, mentorName, profileImage }) {
+  return (
+    <div style={{ display: 'flex', gap: '12px' }}>
+      <Avatar>
+        <img src={profileImage} alt={mentorName} />
+      </Avatar>
+      <div>
+        <strong>{mentorName}</strong>
+        <Markdown content={content} />
       </div>
+    </div>
+  );
+}`}
+      </pre>
+
+      <h4>User Message Component</h4>
+      <pre style={{ background: '#f5f5f5', padding: '15px', borderRadius: '4px', overflow: 'auto' }}>
+{`function UserMessage({ content, fileAttachments }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div>
+        {fileAttachments?.map((file) => (
+          <div key={file.fileName}>{file.fileName}</div>
+        ))}
+        <div>{content}</div>
+      </div>
+    </div>
+  );
+}`}
+      </pre>
+
+      <p><strong>Component Features:</strong></p>
+      <ul style={{ lineHeight: '1.8' }}>
+        <li>Avatar with fallback (AI messages)</li>
+        <li>Markdown rendering for formatted content</li>
+        <li>File attachment display</li>
+        <li>Timestamp display</li>
+        <li>Action buttons (retry, copy, etc.)</li>
+        <li>Responsive layout</li>
+      </ul>
     </div>
   ),
 };
 
 /**
- * ## Chat Input Component
+ * ## Building Chat Input
  *
- * Example of building a chat input form with file upload, voice input, and tools.
+ * Chat input component with send functionality and file upload.
+ *
+ * ### Basic Input Example
  *
  * ```tsx
- * import { useRef, useState } from 'react';
- * import { Button } from '@iblai/web-containers';
- * import { Message } from '@iblai/web-utils';
+ * import { useState } from 'react';
+ * import { Button } from '@iblai/iblai-js';
  *
- * interface ChatInputFormProps {
- *   onSubmit: (content: string) => void;
+ * interface ChatInputProps {
+ *   onSend: (content: string) => void;
  *   isStreaming: boolean;
- *   stopGenerating: () => void;
- *   sessionId: string;
+ *   onStop: () => void;
  * }
  *
- * export function ChatInputForm({
- *   onSubmit,
- *   isStreaming,
- *   stopGenerating,
- *   sessionId
- * }: ChatInputFormProps) {
- *   const [inputValue, setInputValue] = useState('');
- *   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
- *   const fileInputRef = useRef<HTMLInputElement>(null);
+ * export function ChatInput({ onSend, isStreaming, onStop }: ChatInputProps) {
+ *   const [input, setInput] = useState('');
  *
  *   const handleSubmit = (e: React.FormEvent) => {
  *     e.preventDefault();
- *     if (!inputValue.trim() && attachedFiles.length === 0) return;
- *
- *     onSubmit(inputValue);
- *     setInputValue('');
- *     setAttachedFiles([]);
- *   };
- *
- *   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
- *     if (e.target.files) {
- *       setAttachedFiles(Array.from(e.target.files));
- *     }
+ *     if (!input.trim()) return;
+ *     onSend(input);
+ *     setInput('');
  *   };
  *
  *   return (
- *     <form onSubmit={handleSubmit} className="border-t p-4">
- *       {attachedFiles.length > 0 && (
- *         <div className="mb-2 flex gap-2">
- *           {attachedFiles.map((file, idx) => (
- *             <div key={idx} className="bg-gray-100 rounded px-2 py-1 text-xs">
- *               {file.name}
- *             </div>
- *           ))}
- *         </div>
- *       )}
- *
- *       <div className="flex gap-2">
- *         <input
- *           type="file"
- *           ref={fileInputRef}
- *           className="hidden"
- *           onChange={handleFileSelect}
- *           multiple
- *         />
- *
- *         <Button
- *           type="button"
- *           variant="ghost"
- *           onClick={() => fileInputRef.current?.click()}
- *         >
- *           📎 Attach
- *         </Button>
- *
+ *     <form onSubmit={handleSubmit} style={{ padding: '16px', borderTop: '1px solid #ddd' }}>
+ *       <div style={{ display: 'flex', gap: '8px' }}>
  *         <textarea
- *           value={inputValue}
- *           onChange={(e) => setInputValue(e.target.value)}
- *           placeholder="Ask anything..."
- *           className="flex-1 border rounded px-3 py-2 resize-none"
+ *           value={input}
+ *           onChange={(e) => setInput(e.target.value)}
+ *           placeholder="Type your message..."
+ *           style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
  *           rows={1}
  *         />
  *
  *         {isStreaming ? (
- *           <Button type="button" onClick={stopGenerating} variant="destructive">
+ *           <Button type="button" onClick={onStop} variant="destructive">
  *             Stop
  *           </Button>
  *         ) : (
- *           <Button type="submit">
+ *           <Button type="submit" disabled={!input.trim()}>
  *             Send
  *           </Button>
  *         )}
@@ -236,547 +451,279 @@ export const MessageBubbles: Story = {
  * }
  * ```
  *
- * ### Features to Include:
+ * ### With File Upload
  *
- * - **File Upload**: Drag & drop, click to upload, file preview
- * - **Voice Input**: Microphone button with recording indicator
- * - **Auto-resize Textarea**: Grows with content
- * - **File Type Validation**: Check file types and sizes
- * - **Upload Progress**: Show upload status for each file
- * - **Tools Menu**: Web browsing, code interpreter, image generation toggles
+ * ```tsx
+ * import { useState, useRef } from 'react';
+ * import { Button } from '@iblai/iblai-js';
+ *
+ * export function ChatInputWithFiles({ onSend, isStreaming, onStop }) {
+ *   const [input, setInput] = useState('');
+ *   const [files, setFiles] = useState<File[]>([]);
+ *   const fileInputRef = useRef<HTMLInputElement>(null);
+ *
+ *   const handleSubmit = async (e: React.FormEvent) => {
+ *     e.preventDefault();
+ *     if (!input.trim() && files.length === 0) return;
+ *
+ *     // Upload files first, then send message with file URLs
+ *     const fileAttachments = await uploadFiles(files);
+ *     onSend(input, fileAttachments);
+ *
+ *     setInput('');
+ *     setFiles([]);
+ *   };
+ *
+ *   return (
+ *     <form onSubmit={handleSubmit}>
+ *       {files.length > 0 && (
+ *         <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+ *           {files.map((file, idx) => (
+ *             <div key={idx} style={{ padding: '4px 8px', background: '#f0f0f0' }}>
+ *               {file.name}
+ *             </div>
+ *           ))}
+ *         </div>
+ *       )}
+ *
+ *       <div style={{ display: 'flex', gap: '8px' }}>
+ *         <input
+ *           type="file"
+ *           ref={fileInputRef}
+ *           style={{ display: 'none' }}
+ *           onChange={(e) => setFiles(Array.from(e.target.files || []))}
+ *           multiple
+ *         />
+ *
+ *         <Button
+ *           type="button"
+ *           variant="ghost"
+ *           onClick={() => fileInputRef.current?.click()}
+ *         >
+ *           Attach
+ *         </Button>
+ *
+ *         <textarea value={input} onChange={(e) => setInput(e.target.value)} />
+ *
+ *         <Button type="submit">Send</Button>
+ *       </div>
+ *     </form>
+ *   );
+ * }
+ * ```
  */
 export const ChatInputExample: Story = {
   render: () => (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-4">Chat Input Component</h2>
-      <p className="mb-6 text-gray-600">Input form with file upload and streaming control</p>
+    <div style={{ padding: '20px', fontFamily: 'monospace', maxWidth: '800px' }}>
+      <h3>Chat Input Component</h3>
 
-      <div className="max-w-2xl mx-auto bg-white rounded-lg p-4">
-        <pre className="text-xs bg-gray-100 p-4 rounded overflow-x-auto">
-{`// Key features to implement:
-// - File attachments with preview
-// - Drag & drop support
-// - Voice recording
-// - Stop generation button
-// - Send button (disabled when streaming)
-// - Auto-resize textarea
-// - Tool toggles (web browsing, etc.)`}
-        </pre>
-      </div>
+      <h4>Basic Input</h4>
+      <pre style={{ background: '#f5f5f5', padding: '15px', borderRadius: '4px', overflow: 'auto' }}>
+{`import { useState } from 'react';
+import { Button } from '@iblai/iblai-js';
+
+function ChatInput({ onSend, isStreaming, onStop }) {
+  const [input, setInput] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (input.trim()) {
+      onSend(input);
+      setInput('');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <textarea
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder="Type your message..."
+      />
+      {isStreaming ? (
+        <Button onClick={onStop}>Stop</Button>
+      ) : (
+        <Button type="submit">Send</Button>
+      )}
+    </form>
+  );
+}`}
+      </pre>
+
+      <p><strong>Input Features:</strong></p>
+      <ul style={{ lineHeight: '1.8' }}>
+        <li>Auto-expanding textarea</li>
+        <li>File attachment support</li>
+        <li>Send button (disabled when empty)</li>
+        <li>Stop button (when AI is responding)</li>
+        <li>Keyboard shortcuts (Enter to send)</li>
+        <li>File preview before sending</li>
+      </ul>
     </div>
   ),
 };
 
 /**
- * ## Chat Messages List Component
+ * ## Complete Chat Interface
  *
- * Container component for rendering a list of chat messages with auto-scroll.
+ * Full example combining all components into a working chat application.
  *
- * ```tsx
- * import { useRef, useEffect } from 'react';
- * import { Message } from '@iblai/web-utils';
- *
- * interface ChatMessagesProps {
- *   messages: Message[];
- *   profileImage: string;
- *   mentorName: string;
- *   sessionId: string;
- *   onRetry: (content: string) => void;
- * }
- *
- * export function ChatMessages({
- *   messages,
- *   profileImage,
- *   mentorName,
- *   sessionId,
- *   onRetry
- * }: ChatMessagesProps) {
- *   const containerRef = useRef<HTMLDivElement>(null);
- *   const [isScrolledUp, setIsScrolledUp] = useState(false);
- *
- *   const scrollToBottom = () => {
- *     if (containerRef.current) {
- *       containerRef.current.scrollTo({
- *         top: containerRef.current.scrollHeight,
- *         behavior: 'smooth'
- *       });
- *     }
- *   };
- *
- *   const handleScroll = () => {
- *     if (containerRef.current) {
- *       const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
- *       const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
- *       setIsScrolledUp(!isAtBottom);
- *     }
- *   };
- *
- *   useEffect(() => {
- *     scrollToBottom();
- *   }, [messages]);
- *
- *   return (
- *     <div className="relative flex-1 overflow-y-auto">
- *       <div
- *         ref={containerRef}
- *         onScroll={handleScroll}
- *         className="h-full overflow-y-auto p-4"
- *       >
- *         {messages
- *           .filter(msg => msg.visible)
- *           .map((message, i) => (
- *             message.role === 'user' ? (
- *               <UserMessageBubble key={i} {...message} />
- *             ) : (
- *               <AIMessageBubble
- *                 key={i}
- *                 content={message.content}
- *                 profileImage={profileImage}
- *                 mentorName={mentorName}
- *                 timestamp={message.timestamp}
- *                 onRetry={() => onRetry(message.content)}
- *               />
- *             )
- *           ))}
- *       </div>
- *
- *       {isScrolledUp && (
- *         <button
- *           onClick={scrollToBottom}
- *           className="absolute bottom-4 right-4 bg-white rounded-full p-2 shadow-lg"
- *         >
- *           ↓ Scroll to bottom
- *         </button>
- *       )}
- *     </div>
- *   );
- * }
- * ```
+ * See the code example in the story below for implementation details.
  */
-export const ChatMessagesList: Story = {
+export const CompleteExample: Story = {
   render: () => (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-4">Chat Messages List</h2>
-      <p className="mb-6 text-gray-600">Scrollable message container with auto-scroll</p>
+    <div style={{ padding: '20px', fontFamily: 'monospace', maxWidth: '800px' }}>
+      <h3>Complete Chat Interface</h3>
 
-      <div className="max-w-2xl mx-auto bg-white rounded-lg p-4">
-        <pre className="text-xs bg-gray-100 p-4 rounded overflow-x-auto">
-{`// Key features:
-// - Auto-scroll to bottom on new messages
-// - Detect when user scrolls up
-// - Show "scroll to bottom" button when scrolled up
-// - Filter visible messages
-// - Render different components for user/AI messages
-// - Handle message highlighting (for replies)`}
-        </pre>
+      <pre style={{ background: '#f5f5f5', padding: '15px', borderRadius: '4px', overflow: 'auto' }}>
+{`import { useAdvancedChat } from '@iblai/iblai-js';
+
+function ChatApp() {
+  const chat = useAdvancedChat({
+    mentorId: 'mentor-123',
+    mode: 'advanced',
+    tenantKey: 'my-org',
+    username: 'user@example.com',
+    token: 'auth-token',
+    wsUrl: 'wss://api.iblai.app/ws/langflow/',
+    stopGenerationWsUrl: 'wss://api.iblai.app/ws/langflow-stop-generation/',
+    redirectToAuthSpa: (redirectTo) => {
+      window.location.href = \`/login?redirect=\${redirectTo}\`;
+    },
+  });
+
+  return (
+    <div style=${{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div style=${{ flex: 1, overflow: 'auto' }}>
+        {chat.messages.map((msg, i) =>
+          msg.role === 'user'
+            ? <UserMessage key={i} content={msg.content} />
+            : <AIMessage key={i} content={msg.content} mentorName={chat.mentorName} />
+        )}
       </div>
+
+      <ChatInput
+        onSend={(content) => chat.sendMessage('chat', content, { visible: true })}
+        isStreaming={chat.isStreaming}
+        onStop={chat.stopGenerating}
+      />
+    </div>
+  );
+}`}
+      </pre>
+
+      <h4>Implementation Checklist</h4>
+      <ul style={{ lineHeight: '1.8' }}>
+        <li>✅ Install @iblai/iblai-js package</li>
+        <li>✅ Set up Redux store with data-layer API</li>
+        <li>✅ Configure WebSocket URLs</li>
+        <li>✅ Implement authentication flow</li>
+        <li>✅ Build message components (AI and user)</li>
+        <li>✅ Build input component with file upload</li>
+        <li>✅ Add loading indicators</li>
+        <li>✅ Handle error states</li>
+        <li>✅ Add accessibility features</li>
+      </ul>
     </div>
   ),
 };
 
 /**
- * ## Loading Message Component
+ * ## Additional Features
  *
- * Shows a loading indicator while the AI is generating a response.
- *
- * ```tsx
- * import { Avatar, AvatarImage, AvatarFallback } from '@iblai/web-containers';
- *
- * interface LoadingMessageProps {
- *   mentorName: string;
- *   profileImage: string;
- * }
- *
- * export function LoadingMessage({ mentorName, profileImage }: LoadingMessageProps) {
- *   return (
- *     <div className="mb-4">
- *       <div className="flex items-start">
- *         <Avatar className="h-8 w-8 mr-3">
- *           <AvatarImage src={profileImage} alt={mentorName} />
- *           <AvatarFallback>{mentorName.substring(0, 2)}</AvatarFallback>
- *         </Avatar>
- *         <div className="bg-gray-100 rounded-lg p-3">
- *           <div className="flex space-x-1">
- *             <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
- *             <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
- *             <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
- *           </div>
- *         </div>
- *       </div>
- *     </div>
- *   );
- * }
- * ```
- */
-export const LoadingMessageExample: Story = {
-  render: () => (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-4">Loading Message</h2>
-      <p className="mb-6 text-gray-600">Animated loading indicator for AI responses</p>
-
-      <div className="max-w-2xl mx-auto bg-white rounded-lg p-4">
-        <pre className="text-xs bg-gray-100 p-4 rounded overflow-x-auto">
-{`// Shows while waiting for AI response
-// Displays mentor avatar and animated dots
-// Use when: isPending || (isStreaming && !currentStreamingMessage)`}
-        </pre>
-      </div>
-    </div>
-  ),
-};
-
-/**
- * ## Recent/Pinned Messages Sidebar
- *
- * Sidebar component showing recent and pinned chat sessions.
- *
- * ```tsx
- * import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@iblai/web-containers';
- * import { useGetRecentMessageQuery, useGetPinnedMessagesQuery } from '@iblai/data-layer';
- *
- * interface ChatSidebarProps {
- *   tenantKey: string;
- *   userId: string;
- *   mentorId: string;
- *   onSelectSession: (sessionId: string) => void;
- *   currentSessionId?: string;
- * }
- *
- * export function ChatSidebar({
- *   tenantKey,
- *   userId,
- *   mentorId,
- *   onSelectSession,
- *   currentSessionId
- * }: ChatSidebarProps) {
- *   const { data: recentMessages } = useGetRecentMessageQuery({
- *     org: tenantKey,
- *     userId: userId,
- *   });
- *
- *   const { data: pinnedMessages } = useGetPinnedMessagesQuery({
- *     org: tenantKey,
- *     userId: userId,
- *     sessionId: currentSessionId,
- *   });
- *
- *   return (
- *     <div className="w-64 border-r bg-white p-4">
- *       <Accordion type="single" collapsible>
- *         {pinnedMessages?.results?.length > 0 && (
- *           <AccordionItem value="pinned">
- *             <AccordionTrigger>📌 Pinned</AccordionTrigger>
- *             <AccordionContent>
- *               {pinnedMessages.results.map((msg) => (
- *                 <button
- *                   key={msg.session_id}
- *                   onClick={() => onSelectSession(msg.session_id)}
- *                   className="w-full text-left p-2 hover:bg-gray-100 rounded"
- *                 >
- *                   <div className="text-sm truncate">
- *                     {msg.messages[0]?.message?.data?.content}
- *                   </div>
- *                 </button>
- *               ))}
- *             </AccordionContent>
- *           </AccordionItem>
- *         )}
- *
- *         <AccordionItem value="recent">
- *           <AccordionTrigger>💬 Recent</AccordionTrigger>
- *           <AccordionContent>
- *             {recentMessages?.results?.map((msg) => (
- *               <button
- *                 key={msg.session_id}
- *                 onClick={() => onSelectSession(msg.session_id)}
- *                 className="w-full text-left p-2 hover:bg-gray-100 rounded"
- *               >
- *                 <div className="text-sm truncate">
- *                   {msg.messages[0]?.message?.data?.content}
- *                 </div>
- *               </button>
- *             ))}
- *           </AccordionContent>
- *         </AccordionItem>
- *       </Accordion>
- *     </div>
- *   );
- * }
- * ```
- */
-export const ChatSidebarExample: Story = {
-  render: () => (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-4">Chat Sidebar</h2>
-      <p className="mb-6 text-gray-600">Recent and pinned messages navigation</p>
-
-      <div className="max-w-2xl mx-auto bg-white rounded-lg p-4">
-        <pre className="text-xs bg-gray-100 p-4 rounded overflow-x-auto">
-{`// Features:
-// - Pinned messages section
-// - Recent messages section
-// - Session selection
-// - Pin/unpin messages
-// - Export messages
-// - Delete messages
-// - Uses RTK Query hooks for data fetching`}
-        </pre>
-      </div>
-    </div>
-  ),
-};
-
-/**
- * ## Complete Chat Interface Example
- *
- * Full example combining all components with the useAdvancedChat hook.
- *
- * ```tsx
- * import { useAdvancedChat } from '@iblai/web-utils';
- *
- * export function ChatInterface() {
- *   const {
- *     messages,
- *     sendMessage,
- *     isStreaming,
- *     stopGenerating,
- *     sessionId,
- *     mentorName,
- *     profileImage,
- *     activeTab,
- *     changeTab,
- *     setMessage,
- *     currentStreamingMessage,
- *     isPending,
- *   } = useAdvancedChat({
- *     mentorId: 'mentor-123',
- *     mode: 'advanced',
- *     tenantKey: 'my-tenant',
- *     username: 'user123',
- *     token: 'auth-token',
- *     wsUrl: 'wss://api.iblai.app/ws/langflow/',
- *     stopGenerationWsUrl: 'wss://api.iblai.app/ws/langflow-stop-generation/',
- *     redirectToAuthSpa: (redirectTo?: string) => {
- *       window.location.href = `/auth?redirect=${redirectTo}`;
- *     },
- *   });
- *
- *   const handleSubmit = (content: string) => {
- *     sendMessage(activeTab, content, { visible: true });
- *   };
- *
- *   return (
- *     <div className="flex h-screen">
- *       <ChatSidebar
- *         tenantKey="my-tenant"
- *         userId="user123"
- *         mentorId="mentor-123"
- *         onSelectSession={(sessionId) => {
- *           // Load session messages
- *         }}
- *         currentSessionId={sessionId}
- *       />
- *
- *       <div className="flex-1 flex flex-col">
- *         <div className="flex-1 overflow-y-auto">
- *           {messages.length === 0 ? (
- *             <WelcomeScreen
- *               mentorName={mentorName}
- *               profileImage={profileImage}
- *               onPromptSelect={handleSubmit}
- *             />
- *           ) : (
- *             <ChatMessages
- *               messages={messages}
- *               profileImage={profileImage}
- *               mentorName={mentorName}
- *               sessionId={sessionId}
- *               onRetry={handleSubmit}
- *             />
- *           )}
- *
- *           {(isPending || isStreaming) && !currentStreamingMessage?.content && (
- *             <LoadingMessage mentorName={mentorName} profileImage={profileImage} />
- *           )}
- *         </div>
- *
- *         <ChatInputForm
- *           onSubmit={handleSubmit}
- *           isStreaming={isStreaming}
- *           stopGenerating={stopGenerating}
- *           sessionId={sessionId}
- *         />
- *       </div>
- *     </div>
- *   );
- * }
- * ```
- *
- * This creates a complete chat interface with:
- * - Sidebar for navigation
- * - Welcome screen for new chats
- * - Message list with auto-scroll
- * - Loading indicators
- * - Input form with file upload
- * - Real-time streaming
- */
-export const CompleteIntegration: Story = {
-  render: () => (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-4">Complete Chat Interface</h2>
-      <p className="mb-6 text-gray-600">
-        Full integration example combining all chat components
-      </p>
-
-      <div className="max-w-4xl mx-auto space-y-4">
-        <div className="bg-white rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3">Implementation Checklist</h3>
-          <ul className="space-y-2 text-sm">
-            <li>✅ Install packages: @iblai/web-utils, @iblai/web-containers, @iblai/data-layer</li>
-            <li>✅ Set up Redux store with data-layer API</li>
-            <li>✅ Configure WebSocket URLs (wsUrl, stopGenerationWsUrl)</li>
-            <li>✅ Implement authentication flow (redirectToAuthSpa)</li>
-            <li>✅ Build message bubble components (AI and user)</li>
-            <li>✅ Build input form with file upload</li>
-            <li>✅ Build messages list with auto-scroll</li>
-            <li>✅ Add loading indicators</li>
-            <li>✅ Implement sidebar navigation (optional)</li>
-            <li>✅ Handle error states and retry logic</li>
-            <li>✅ Add accessibility features (ARIA labels, keyboard nav)</li>
-          </ul>
-        </div>
-
-        <div className="bg-white rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3">Key Data Flow</h3>
-          <pre className="text-xs bg-gray-100 p-4 rounded overflow-x-auto">
-{`1. User types message and clicks send
-2. ChatInputForm calls onSubmit(content)
-3. Parent component calls sendMessage(activeTab, content, options)
-4. useAdvancedChat sends message via WebSocket
-5. WebSocket receives streaming response
-6. Redux state updated with new messages
-7. ChatMessages re-renders with new messages
-8. Auto-scroll to bottom
-9. Show loading indicator while streaming
-10. Hide loading when response complete`}
-          </pre>
-        </div>
-
-        <div className="bg-white rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3">File Upload Flow</h3>
-          <pre className="text-xs bg-gray-100 p-4 rounded overflow-x-auto">
-{`1. User selects files
-2. Validate file types and sizes
-3. Upload files to S3 (use useChatFileUpload hook)
-4. Store file metadata in Redux
-5. Display file preview in input area
-6. When user sends message:
-   - Include file references in message
-   - Clear attached files
-7. Display files in user message bubble`}
-          </pre>
-        </div>
-
-        <div className="bg-white rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3">Related Documentation</h3>
-          <ul className="space-y-1 text-sm text-blue-600">
-            <li>→ See "Chat Hooks" story for hook API details</li>
-            <li>→ See "Auth Components" story for login/signup</li>
-            <li>→ See web-utils README for utility functions</li>
-            <li>→ See web-containers README for UI components</li>
-            <li>→ See data-layer README for API hooks</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  ),
-};
-
-/**
- * ## Additional Chat Features
+ * Advanced features you can add to your chat interface.
  *
  * ### Message Actions
- *
- * - **Rating**: thumbs up/down for AI messages
- * - **Copy**: copy message content to clipboard
- * - **Share**: share chat session
- * - **Retry**: regenerate AI response
- * - **Reply**: reply to specific message
+ * - Rating (thumbs up/down)
+ * - Copy to clipboard
+ * - Share conversation
+ * - Retry generation
+ * - Reply to specific message
  *
  * ### File Handling
+ * - Drag & drop upload
+ * - Image preview
+ * - File type validation
+ * - Upload progress
+ * - Multiple file support
  *
- * - **Upload**: Drag & drop or click to upload
- * - **Preview**: Show image previews, file cards
- * - **Validation**: Check file types and sizes
- * - **Progress**: Show upload progress
+ * ### AI Tools
+ * - Web browsing
+ * - Code interpreter
+ * - Image generation
+ * - Deep research
+ * - Document analysis
  *
- * ### Advanced Features
- *
- * - **Multi-tab Chat**: Chat, Research, Code tabs
- * - **Tools**: Web browsing, code interpreter, image generation
- * - **Voice**: Voice input and voice call
- * - **Screen Sharing**: Share screen with AI
- * - **Guided Prompts**: Suggested follow-up questions
+ * ### Communication
+ * - Voice input (speech-to-text)
+ * - Voice calls with AI
+ * - Screen sharing
+ * - Real-time streaming
  *
  * ### Accessibility
- *
- * - **Keyboard Navigation**: Tab through messages and buttons
- * - **Screen Reader**: ARIA labels and live regions
- * - **Focus Management**: Trap focus in modals
- * - **Color Contrast**: WCAG AA compliant colors
+ * - Keyboard navigation
+ * - Screen reader support (ARIA labels)
+ * - Focus management
+ * - High contrast mode
  */
 export const AdditionalFeatures: Story = {
   render: () => (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-4">Additional Chat Features</h2>
-      <p className="mb-6 text-gray-600">
-        Advanced features you can add to your chat interface
-      </p>
+    <div style={{ padding: '20px', fontFamily: 'monospace', maxWidth: '800px' }}>
+      <h3>Additional Chat Features</h3>
 
-      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg p-4">
-          <h3 className="font-semibold mb-2">Message Actions</h3>
-          <ul className="text-sm space-y-1 text-gray-600">
-            <li>• Rate AI responses (thumbs up/down)</li>
-            <li>• Copy message to clipboard</li>
-            <li>• Share chat session</li>
-            <li>• Retry generation</li>
-            <li>• Reply to message</li>
-          </ul>
-        </div>
-
-        <div className="bg-white rounded-lg p-4">
-          <h3 className="font-semibold mb-2">File Upload</h3>
-          <ul className="text-sm space-y-1 text-gray-600">
-            <li>• Drag & drop files</li>
-            <li>• Image preview</li>
-            <li>• File type validation</li>
-            <li>• Upload progress</li>
-            <li>• Multiple file support</li>
-          </ul>
-        </div>
-
-        <div className="bg-white rounded-lg p-4">
-          <h3 className="font-semibold mb-2">AI Tools</h3>
-          <ul className="text-sm space-y-1 text-gray-600">
-            <li>• Web browsing</li>
-            <li>• Code interpreter</li>
-            <li>• Image generation</li>
-            <li>• Deep research</li>
-            <li>• Google Docs/Slides</li>
-          </ul>
-        </div>
-
-        <div className="bg-white rounded-lg p-4">
-          <h3 className="font-semibold mb-2">Communication</h3>
-          <ul className="text-sm space-y-1 text-gray-600">
-            <li>• Voice input (speech-to-text)</li>
-            <li>• Voice call with AI</li>
-            <li>• Screen sharing</li>
-            <li>• Text streaming</li>
-          </ul>
-        </div>
+      <h4>Message Actions</h4>
+      <pre style={{ background: '#f5f5f5', padding: '15px', borderRadius: '4px', overflow: 'auto' }}>
+{`// Add action buttons to messages
+function AIMessage({ content, onRate, onCopy, onRetry }) {
+  return (
+    <div>
+      <Markdown content={content} />
+      <div>
+        <button onClick={() => onRate('up')}>👍</button>
+        <button onClick={() => onRate('down')}>👎</button>
+        <button onClick={onCopy}>Copy</button>
+        <button onClick={onRetry}>Retry</button>
       </div>
+    </div>
+  );
+}`}
+      </pre>
+
+      <h4>File Upload with Progress</h4>
+      <pre style={{ background: '#f5f5f5', padding: '15px', borderRadius: '4px', overflow: 'auto' }}>
+{`// Track upload progress
+const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+
+const uploadFile = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+    // Track progress
+    onUploadProgress: (event) => {
+      const progress = (event.loaded / event.total) * 100;
+      setUploadProgress(prev => ({
+        ...prev,
+        [file.name]: progress
+      }));
+    }
+  });
+
+  return response.json();
+};`}
+      </pre>
+
+      <p><strong>Advanced Features:</strong></p>
+      <ul style={{ lineHeight: '1.8' }}>
+        <li>Message threading and replies</li>
+        <li>Session history and search</li>
+        <li>Export conversations</li>
+        <li>Custom AI tools integration</li>
+        <li>Multi-language support</li>
+        <li>Dark mode support</li>
+      </ul>
     </div>
   ),
 };
