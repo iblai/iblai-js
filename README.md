@@ -1,9 +1,9 @@
-# IBL AI SDK
+# ibl.ai SDK
 
 [![npm version](https://img.shields.io/npm/v/@iblai/iblai-js.svg)](https://www.npmjs.com/package/@iblai/iblai-js)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-TypeScript SDK for the IBL AI Platform - providing data layer, utilities, and React components for building AI-powered educational applications.
+TypeScript SDK for the [ibl.ai](https://ibl.ai) Platform - providing data layer, utilities, and React components for building AI-powered educational applications.
 
 ## Installation
 
