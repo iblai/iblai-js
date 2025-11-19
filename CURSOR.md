@@ -1,10 +1,10 @@
 # Cursor AI Development Instructions
 
-This document provides instructions for AI-assisted development using Cursor IDE for the IBL AI SDK project.
+This document provides instructions for AI-assisted development using Cursor IDE for the ibl.ai SDK project.
 
 ## Project Overview
 
-**IBL AI SDK** is a TypeScript monorepo containing packages for building AI-powered educational applications. It consists of:
+**ibl.ai SDK** is a TypeScript monorepo containing packages for building AI-powered educational applications. It consists of:
 
 - `@iblai/iblai-js` - Unified package containing data layer, utilities, and React components
   - Includes `data-layer/` - RTK Query API slices and data management

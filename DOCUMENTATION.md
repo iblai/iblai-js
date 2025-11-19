@@ -1,6 +1,6 @@
-# IBL AI SDK - Storybook Documentation
+# ibl.ai SDK - Storybook Documentation
 
-Complete interactive documentation for the IBL AI SDK using React Storybook.
+Complete interactive documentation for the ibl.ai SDK using React Storybook.
 
 ## 📚 What's Documented
 

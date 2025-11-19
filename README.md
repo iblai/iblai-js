@@ -96,6 +96,7 @@ iblai-sdk/
 
 ## Documentation
 
+- **[Quick Start Guide](./docs/quickstart/README.md)** - Complete quick start guide for building applications
 - **[API Reference](./API.md)** - Complete API documentation
 - **[Storybook](http://localhost:6006)** - Interactive component documentation (run `pnpm storybook`)
 - **[Contributing Guide](./CONTRIBUTING.md)** - How to contribute

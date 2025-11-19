@@ -3,13 +3,13 @@ import type { Meta, StoryObj } from '@storybook/react';
 /**
  * # Chat Components Guide
  *
- * Comprehensive guide for building chat user interfaces using IBL AI SDK hooks and components.
+ * Comprehensive guide for building chat user interfaces using ibl.ai SDK hooks and components.
  * This documentation provides implementation patterns and best practices for creating
  * chat applications with AI mentors.
  *
  * ## Overview
  *
- * The IBL AI SDK provides powerful hooks and utilities for building chat interfaces,
+ * The ibl.ai SDK provides powerful hooks and utilities for building chat interfaces,
  * but does not prescribe specific UI components. This gives you flexibility to:
  *
  * - Build custom chat UIs that match your design system
@@ -52,7 +52,7 @@ const meta = {
     layout: 'centered',
     docs: {
       description: {
-        component: 'Patterns and examples for building chat UIs with IBL AI SDK.',
+        component: 'Patterns and examples for building chat UIs with ibl.ai SDK.',
       },
     },
   },

@@ -1,6 +1,6 @@
-# IBL AI SDK - Quick Start Guide
+# ibl.ai SDK - Quick Start Guide
 
-Welcome to the IBL AI JavaScript SDK! This guide will help you build React or Next.js applications using the IBL AI ecosystem, including authentication, chat, user profiles, and more.
+Welcome to the ibl.ai JavaScript SDK! This guide will help you build React or Next.js applications using the ibl.ai ecosystem, including authentication, chat, user profiles, and more.
 
 ## Table of Contents
 
@@ -19,9 +19,9 @@ Welcome to the IBL AI JavaScript SDK! This guide will help you build React or Ne
 
 ## Overview
 
-The IBL AI SDK (`@iblai/iblai-js`) is a unified TypeScript SDK that provides:
+The ibl.ai SDK (`@iblai/iblai-js`) is a unified TypeScript SDK that provides:
 
-- **Data Layer**: RTK Query API slices for all IBL AI platform APIs
+- **Data Layer**: RTK Query API slices for all ibl.ai platform APIs
 - **Web Utils**: React providers, hooks, and utilities
 - **Web Containers**: Pre-built React UI components
 - **Native Components**: React Native components (coming soon)
@@ -30,7 +30,7 @@ The IBL AI SDK (`@iblai/iblai-js`) is a unified TypeScript SDK that provides:
 
 **You do NOT need to implement authentication yourself!**
 
-IBL AI uses a specialized **Auth SPA** (Single Page Application) that handles all authentication methods:
+ibl.ai uses a specialized **Auth SPA** (Single Page Application) that handles all authentication methods:
 
 - Magic link
 - Username/password
@@ -78,7 +78,7 @@ npm install react react-dom @reduxjs/toolkit react-redux
 
 ### Styling
 
-The SDK includes a pre-configured CSS design system with IBL AI brand colors, components, and utilities.
+The SDK includes a pre-configured CSS design system with ibl.ai brand colors, components, and utilities.
 
 #### Import Base Styles
 
@@ -110,7 +110,7 @@ See the [Styling Guide](#styling-guide) section below for detailed usage.
 
 ### 1. Three-Layer Provider Structure
 
-Every IBL AI app uses three essential providers in this order:
+Every ibl.ai app uses three essential providers in this order:
 
 1. **AuthProvider**: Handles authentication state and redirects
 2. **TenantProvider**: Manages multi-tenancy and organization context
@@ -575,9 +575,9 @@ export function useUserData() {
 
 ## Chat Integration
 
-### Understanding Chat in IBL AI
+### Understanding Chat in ibl.ai
 
-**You do NOT need LLM credentials!** The IBL AI platform handles all LLM communication through WebSocket connections. Your app simply:
+**You do NOT need LLM credentials!** The ibl.ai platform handles all LLM communication through WebSocket connections. Your app simply:
 
 1. Uses the `useAdvancedChat` hook to manage chat state
 2. Renders messages using the Chat component or custom UI
@@ -1421,7 +1421,7 @@ function ChatInterface({ tenantKey, mentorId }: { tenantKey: string; mentorId: s
 
 ### Q: Do I need LLM API keys or credentials?
 
-**No!** The IBL AI platform handles all LLM communication. Just use `useAdvancedChat` hook.
+**No!** The ibl.ai platform handles all LLM communication. Just use `useAdvancedChat` hook.
 
 ### Q: How do I handle magic link authentication?
 

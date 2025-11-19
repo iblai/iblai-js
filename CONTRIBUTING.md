@@ -1,6 +1,6 @@
-# Contributing to IBL AI SDK
+# Contributing to ibl.ai SDK
 
-Thank you for contributing to the IBL AI SDK!
+Thank you for contributing to the ibl.ai SDK!
 
 ## Getting Started
 
