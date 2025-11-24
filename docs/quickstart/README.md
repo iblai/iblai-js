@@ -196,14 +196,25 @@ export function setupDataLayer() {
 
 This is the **most important page** - it receives the authentication callback.
 
+> **Framework Note:** Some components like `SsoLogin`, `ErrorPage`, `UserProfileDropdown`, and hooks like `useTimeTracker` use Next.js-specific APIs. For Next.js projects, import them from `@iblai/iblai-js/next`. For non-Next.js projects, see the framework-agnostic alternatives below.
+
 #### Next.js App Router
+
+> **Important: `'use client'` Directive Required**
+>
+> Components from `@iblai/iblai-js/next` use React hooks and browser APIs that require client-side rendering. You **must** add the `'use client'` directive at the top of any page or component that imports from this subpath, otherwise you'll get the error:
+>
+> ```
+> Error: createContext only works in Client Components. Add the "use client" directive at the top of the file to use it.
+> ```
 
 ```typescript
 // app/sso-login/page.tsx
-'use client';
+'use client'; // ⚠️ REQUIRED - Components use React hooks and browser APIs
 
 import React, { Suspense } from 'react';
-import { SsoLogin } from '@iblai/iblai-js';
+// Import from /next subpath for Next.js-specific components
+import { SsoLogin } from '@iblai/iblai-js/next';
 
 const LOCAL_STORAGE_KEYS = {
   CURRENT_TENANT: 'current_tenant',
@@ -234,33 +245,279 @@ export default function SsoLoginPage() {
 }
 ```
 
-#### React Router
+#### React Router (Non-Next.js Projects)
+
+For non-Next.js React applications, the `SsoLogin` component from `@iblai/iblai-js/next` won't work because it uses Next.js-specific APIs (`useSearchParams` from `next/navigation`). Instead, you need to create your own SSO login handler.
+
+##### Understanding the SSO Flow
+
+1. User clicks login → Redirect to Auth SPA (`https://login.iblai.app`)
+2. Auth SPA handles authentication (magic link, Google, Apple, password)
+3. Auth SPA redirects back to your app at `/sso-login?data=<base64-encoded-json>`
+4. Your SSO login page parses the data, stores it, and redirects to the app
+
+##### Creating a Custom SSO Login Component
+
+The SDK provides framework-agnostic SSO utilities that you can import directly from `@iblai/iblai-js`. You don't need to copy any code - just import the utilities and use them in your SSO login component.
+
+###### Available SSO Utilities
+
+```typescript
+import {
+  // Types
+  type SsoStorageKeys,
+  type HandleSsoCallbackOptions,
+
+  // Constants
+  DEFAULT_SSO_STORAGE_KEYS,
+
+  // Functions
+  handleSsoCallback,           // High-level: handles the entire SSO callback flow
+  parseSsoData,                // Parse the data query parameter
+  initializeLocalStorageWithObject, // Store auth data in localStorage + cookies
+  syncSsoDataToCookies,        // Sync SSO data to cookies for cross-SPA sharing
+  setCookie,                   // Set a cookie with proper domain
+  getBaseDomain,               // Get base domain for cookie sharing
+} from '@iblai/iblai-js';
+```
+
+###### Quick Implementation (Recommended)
+
+Use `handleSsoCallback` for a simple one-liner implementation:
+
+```typescript
+// pages/SsoLogin.tsx (React Router)
+import { useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { handleSsoCallback } from '@iblai/iblai-js';
+
+export function SsoLoginPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    handleSsoCallback({
+      queryParamData: searchParams.get('data'),
+      redirectPathKey: 'redirect-to',
+      defaultRedirectPath: '/',
+      onRedirect: (path) => navigate(path),
+      onLoginSuccess: (data) => console.log('Login successful', data),
+      onLoginError: (error) => console.error('Login failed', error),
+    });
+  }, [searchParams, navigate]);
+
+  return null; // Redirect-only page
+}
+```
+
+###### Manual Implementation (More Control)
+
+If you need more control over the SSO flow, use the lower-level utilities:
 
 ```typescript
 // pages/SsoLogin.tsx
-import React from 'react';
-import { SsoLogin } from '@iblai/iblai-js';
+// React Router implementation with manual control
 
-const LOCAL_STORAGE_KEYS = {
-  CURRENT_TENANT: 'current_tenant',
-  USER_DATA: 'user_data',
-  TENANTS: 'tenants',
-};
+import React, { useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  initializeLocalStorageWithObject,
+  parseSsoData,
+  DEFAULT_SSO_STORAGE_KEYS,
+  type SsoStorageKeys
+} from '@iblai/iblai-js';
 
-export function SsoLoginPage() {
-  return (
-    <SsoLogin
-      localStorageKeys={{
-        CURRENT_TENANT: LOCAL_STORAGE_KEYS.CURRENT_TENANT,
-        USER_DATA: LOCAL_STORAGE_KEYS.USER_DATA,
-        TENANTS: LOCAL_STORAGE_KEYS.TENANTS,
-      }}
-      redirectPathKey="redirect-to"
-      defaultRedirectPath="/"
-    />
-  );
+interface SsoLoginPageProps {
+  /**
+   * Local storage keys for authentication data
+   */
+  localStorageKeys?: SsoStorageKeys;
+  /**
+   * Local storage key for redirect path
+   */
+  redirectPathKey?: string;
+  /**
+   * Default redirect path if none is found
+   */
+  defaultRedirectPath?: string;
+  /**
+   * Optional callback after successful login
+   */
+  onLoginSuccess?: (data: Record<string, string>) => void;
+  /**
+   * Optional callback on login error
+   */
+  onLoginError?: (error: Error) => void;
+}
+
+export function SsoLoginPage({
+  localStorageKeys = DEFAULT_SSO_STORAGE_KEYS,
+  redirectPathKey = 'redirect-to',
+  defaultRedirectPath = '/',
+  onLoginSuccess,
+  onLoginError,
+}: SsoLoginPageProps) {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const queryParamData = searchParams.get('data');
+
+    console.log('[SsoLogin] SSO login page loaded', {
+      hasQueryData: !!queryParamData,
+      origin: window.location.origin,
+    });
+
+    const parsedData = parseSsoData(queryParamData);
+
+    if (parsedData) {
+      console.log('[SsoLogin] Processing SSO login data');
+
+      initializeLocalStorageWithObject(parsedData, localStorageKeys)
+        .then(() => {
+          // Call optional success callback
+          onLoginSuccess?.(parsedData);
+
+          // Determine redirect path
+          const redirectPath = localStorage.getItem(redirectPathKey) || defaultRedirectPath;
+
+          console.log('[SsoLogin] SSO login redirecting', {
+            redirectPath,
+            targetUrl: `${window.location.origin}${redirectPath}`,
+          });
+
+          // Clean up redirect path from storage
+          localStorage.removeItem(redirectPathKey);
+
+          // Redirect to the target path
+          navigate(redirectPath);
+        })
+        .catch((error) => {
+          console.error('[SsoLogin] Failed to initialize auth:', error);
+          onLoginError?.(error);
+        });
+    } else if (queryParamData) {
+      // Data was present but couldn't be parsed
+      const error = new Error('Failed to parse SSO authentication data');
+      console.error('[SsoLogin]', error);
+      onLoginError?.(error);
+    }
+  }, [searchParams, navigate, localStorageKeys, redirectPathKey, defaultRedirectPath, onLoginSuccess, onLoginError]);
+
+  // Render nothing - this is a redirect-only page
+  return null;
 }
 ```
+
+##### Vanilla JavaScript / Other Frameworks
+
+If you're not using React Router, here's how to implement SSO login handling:
+
+```typescript
+// sso-login.ts
+// Vanilla JS / Framework-agnostic implementation
+
+import {
+  initializeLocalStorageWithObject,
+  parseSsoData,
+  DEFAULT_SSO_STORAGE_KEYS
+} from '@iblai/iblai-js';
+
+interface SsoLoginOptions {
+  redirectPathKey?: string;
+  defaultRedirectPath?: string;
+  onLoginSuccess?: (data: Record<string, string>) => void;
+  onLoginError?: (error: Error) => void;
+}
+
+export async function handleSsoLogin(options: SsoLoginOptions = {}): Promise<void> {
+  const {
+    redirectPathKey = 'redirect-to',
+    defaultRedirectPath = '/',
+    onLoginSuccess,
+    onLoginError,
+  } = options;
+
+  // Get data from URL query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const queryParamData = urlParams.get('data');
+
+  const parsedData = parseSsoData(queryParamData);
+
+  if (!parsedData) {
+    if (queryParamData) {
+      const error = new Error('Failed to parse SSO authentication data');
+      onLoginError?.(error);
+    }
+    return;
+  }
+
+  try {
+    await initializeLocalStorageWithObject(parsedData, DEFAULT_SSO_STORAGE_KEYS);
+
+    onLoginSuccess?.(parsedData);
+
+    // Determine redirect path
+    const redirectPath = localStorage.getItem(redirectPathKey) || defaultRedirectPath;
+
+    // Clean up
+    localStorage.removeItem(redirectPathKey);
+
+    // Redirect using window.location (works in any framework)
+    window.location.href = `${window.location.origin}${redirectPath}`;
+  } catch (error) {
+    onLoginError?.(error as Error);
+  }
+}
+
+// Usage in your SSO login page:
+// document.addEventListener('DOMContentLoaded', () => {
+//   handleSsoLogin({
+//     onLoginSuccess: (data) => console.log('Login successful', data),
+//     onLoginError: (error) => console.error('Login failed', error),
+//   });
+// });
+```
+
+##### Vue.js Example
+
+```typescript
+<!-- SsoLogin.vue -->
+<script setup lang="ts">
+import { onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { initializeLocalStorageWithObject, parseSsoData, DEFAULT_SSO_STORAGE_KEYS } from '@iblai/iblai-js';
+
+const route = useRoute();
+const router = useRouter();
+
+onMounted(async () => {
+  const queryParamData = route.query.data as string | undefined;
+  const parsedData = parseSsoData(queryParamData ?? null);
+
+  if (parsedData) {
+    await initializeLocalStorageWithObject(parsedData, DEFAULT_SSO_STORAGE_KEYS);
+
+    const redirectPath = localStorage.getItem('redirect-to') || '/';
+    localStorage.removeItem('redirect-to');
+
+    router.push(redirectPath);
+  }
+});
+</script>
+
+<template>
+  <!-- Empty - redirect only page -->
+</template>
+```
+
+##### Key Points for Custom Implementation
+
+1. **Parse the `data` query parameter** - The Auth SPA sends auth data as a JSON string in the `data` query param
+2. **Store in localStorage** - All key-value pairs should be stored for the SDK to work
+3. **Sync to cookies** - Required for cross-SPA communication (multiple apps on subdomains)
+4. **Handle the redirect** - Check for a stored redirect path, then navigate there
+5. **Clean up** - Remove the redirect path from storage after use
 
 ### Step 4: Add Login and Signup Buttons
 
@@ -796,8 +1053,15 @@ function ChatWithFiles() {
 
 ### User Profile Component
 
+> **Note:** `UserProfileDropdown` uses `next/link` and must be imported from `@iblai/iblai-js/next` in Next.js projects. For non-Next.js projects, you'll need to create a custom dropdown component.
+>
+> **⚠️ Remember:** Add `'use client'` at the top of your file when using this component in Next.js App Router.
+
 ```typescript
-import { UserProfileDropdown } from '@iblai/iblai-js';
+// Next.js only - import from /next subpath
+'use client'; // Required for Next.js App Router
+
+import { UserProfileDropdown } from '@iblai/iblai-js/next';
 import { config } from '@/lib/config';
 
 export function Header() {
@@ -857,11 +1121,9 @@ export function TenantSwitcher() {
 
 - `LoginButton` - Pre-built login button
 - `SignupButton` - Pre-built signup button
-- `SsoLogin` - SSO login handler component
 
 #### User Interface
 
-- `UserProfileDropdown` - User profile menu with tenant switcher
 - `TenantSwitch` - Tenant switching component
 - `InviteUser` - Invite users to organization
 - `InvitedUsers` - Display invited users list
@@ -876,11 +1138,50 @@ export function TenantSwitcher() {
 #### Utilities
 
 - `Spinner` - Loading spinner
-- `ErrorPage` - Error display page
 - `ClientErrorPage` - Client-side error handler
 - `RichTextEditor` - Rich text input component
 - `SearchableMultiselect` - Searchable dropdown with multi-select
 - `Markdown` - Markdown renderer
+
+### Next.js-Specific Components (from `@iblai/iblai-js/next`)
+
+> **Important:** These components require Next.js and must be imported from the `/next` subpath.
+>
+> **⚠️ `'use client'` Directive Required:** All components and hooks from this subpath use React hooks, context, and browser APIs. When using them in Next.js App Router, you **must** add `'use client'` at the top of your page or component file. Without it, you'll get the error:
+>
+> ```
+> Error: createContext only works in Client Components. Add the "use client" directive at the top of the file to use it.
+> ```
+
+**Components:**
+- `SsoLogin` - SSO login handler component (uses `next/navigation`)
+- `UserProfileDropdown` - User profile menu with tenant switcher (uses `next/link`)
+- `UserProfileModal` - User profile modal with account settings (uses `next/image`)
+- `ErrorPage` - Error display page (uses `next/image` and `next/link`)
+- `ClientErrorPage` - Client-side error page wrapper (uses `ErrorPage`)
+- `Account` - Account settings component (uses `next/image`)
+- `OrganizationTab` - Organization settings tab (uses `next/image`)
+
+**Hooks:**
+- `useTimeTracker` - Time tracking hook (uses `next/router`)
+- `useGetChatDetails` - Chat details hook (uses `next/navigation`)
+
+**Example Usage:**
+
+```typescript
+// app/profile/page.tsx
+'use client'; // ⚠️ REQUIRED for all /next imports
+
+import { UserProfileModal, UserProfileDropdown } from '@iblai/iblai-js/next';
+
+export default function ProfilePage() {
+  return (
+    <UserProfileDropdown
+      // ... props
+    />
+  );
+}
+```
 
 ### Hooks (from `@iblai/iblai-js`)
 
@@ -1433,7 +1734,50 @@ Use the `TenantProvider` and `TenantSwitch` component, or call the tenant switch
 
 ### Q: Can I use this with React Router instead of Next.js?
 
-Yes! The SDK is framework-agnostic. Just adapt the routing logic.
+Yes! Most of the SDK is framework-agnostic. However, some components require Next.js:
+
+**Next.js-specific (import from `@iblai/iblai-js/next`):**
+- `SsoLogin` - uses `next/navigation`
+- `UserProfileDropdown` - uses `next/link`
+- `UserProfileModal` - uses `next/image`
+- `ClientErrorPage` - uses `next/image` and `next/link`
+- `ErrorPage` - uses `next/image` and `next/link`
+- `Account` - uses `next/image`
+- `OrganizationTab` - uses `next/image`
+- `useTimeTracker` - uses `next/router`
+- `useGetChatDetails` - uses `next/navigation`
+
+For non-Next.js projects (Create React App, Vite, React Router, etc.), see the "React Router" examples in this guide for framework-agnostic alternatives.
+
+### Q: I'm getting "createContext only works in Client Components" error in Next.js
+
+This error occurs when using SDK components in Next.js App Router without the `'use client'` directive. The SDK uses React hooks and context that require client-side rendering.
+
+**Solution:** Add `'use client'` at the very top of your page or component file:
+
+```typescript
+// app/my-page/page.tsx
+'use client'; // Add this line at the very top
+
+import { SsoLogin } from '@iblai/iblai-js/next';
+// ... rest of your code
+```
+
+### Q: I'm getting "Module not found: Can't resolve 'next/image'" in Create React App
+
+This error occurs when importing from the wrong entry point. Create React App and other non-Next.js projects cannot use components that depend on Next.js.
+
+**Solution:** Import from the main entry point `@iblai/iblai-js` instead of `@iblai/iblai-js/next`:
+
+```typescript
+// ❌ Wrong - will fail in CRA
+import { SsoLogin } from '@iblai/iblai-js/next';
+
+// ✅ Correct - use framework-agnostic utilities
+import { handleSsoCallback, parseSsoData } from '@iblai/iblai-js';
+```
+
+See the "React Router (Non-Next.js Projects)" section for complete examples of framework-agnostic SSO handling.
 
 ### Q: How do I access mentor settings?
 
