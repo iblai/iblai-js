@@ -55,9 +55,10 @@ function MentorsList() {
 ### Setup
 
 ```bash
+#Fork the repository first
+
 # Clone the repository
-git clone https://github.com/iblai/iblai-sdk.git
-cd iblai-sdk
+git clone https://github.com/iblai/iblai-js
 
 # Install dependencies
 pnpm install
